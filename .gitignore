@@ -1,0 +1,12 @@
+.gradle/
+.idea/
+build/
+classes/
+*.iml
+out/
+secrets.properties
+node_modules
+dist
+src/app/cypress/downloads
+src/app/cypress/screenshots
+src/app/cypress/videos
