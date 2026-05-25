@@ -1,4 +1,4 @@
-runtime: java17
+runtime: java25
 service: billing
 entrypoint: java -jar billing-all.jar
 handlers:
