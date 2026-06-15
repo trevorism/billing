@@ -4,7 +4,7 @@ micronaut:
   server:
     http-to-https-redirect: true
   security:
-    enabled: false
+    enabled: true
     redirect:
       enabled: false
   router:
@@ -23,3 +23,26 @@ netty:
   default:
     allocator:
       max-order: 3
+endpoints:
+  health:
+    enabled: true
+    details-visible: ANONYMOUS   # /health for load balancer / uptime checks
+stripe:
+  url: https://stripe.trevorism.com
+xrp:                       # all networks are served at once; the payment method's provider selects one
+  testnet:
+    rpcUrl: https://s.altnet.rippletest.net:51234/
+  mainnet:
+    rpcUrl: https://xrplcluster.com/
+cardano:
+  backend: koios        # "koios" (free, keyless) or "blockfrost" (needs blockfrostProjectId)
+payment:
+  preparedTtlMinutes: 15   # how long a prepared (unsigned) send remains submittable
+  limits:                  # per-transaction caps in native units, keyed by provider; 0 = unlimited
+    xrp-testnet: 0
+    xrp-mainnet: 0
+    cardano-preprod: 0
+    cardano-mainnet: 0
+    stripe: 0
+  screening:
+    denylist: []           # blocked addresses; seam for a real sanctions/AML provider
