@@ -32,8 +32,10 @@ class Transaction {
     String unsignedPayload
     @Schema(description = "When a PREPARED send expires and may no longer be submitted")
     Date expiresAt
-    @Schema(description = "Amount of money moved")
-    BigDecimal amount
+    // Stored as a String to preserve exact decimal precision: the trevorism datastore-client only maps
+    // Integer/Long/Float/Double/Boolean/Date/List/Map and would fail to deserialize a BigDecimal field.
+    @Schema(description = "Amount of money moved (exact decimal string, e.g. \"1.5\")")
+    String amount
     @Schema(description = "Currency code")
     String currency
     @Schema(description = "Status reported by the provider")

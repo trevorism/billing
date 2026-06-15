@@ -95,7 +95,7 @@ class PaymentService {
                 ownerId: method.ownerId,
                 tenant: tenant,
                 senderAddress: request.senderAddress,
-                amount: request.amount,
+                amount: request.amount?.toPlainString(),
                 currency: request.currency,
                 status: TransactionStatus.PREPARED,
                 unsignedPayload: prepared.unsignedPayload,
@@ -241,8 +241,9 @@ class PaymentService {
             throw new IllegalArgumentException("This receive requires a destination tag to attribute the deposit")
         }
 
+        BigDecimal expectedAmount = transaction.amount != null ? new BigDecimal(transaction.amount) : null
         boolean verified = verifying
-                .verifyDeposit(depositReference, address, transaction.amount, destinationTag)
+                .verifyDeposit(depositReference, address, expectedAmount, destinationTag)
         if (!verified) {
             throw new IllegalArgumentException("Deposit ${depositReference} does not match the expected payment for ${transactionId}")
         }
@@ -359,7 +360,7 @@ class PaymentService {
                 paymentMethodId: method.id,
                 ownerId: method.ownerId,
                 tenant: tenant,
-                amount: request.amount,
+                amount: request.amount?.toPlainString(),
                 currency: request.currency,
                 status: result.status,
                 externalReference: result.externalReference,

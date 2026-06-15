@@ -178,7 +178,7 @@ class PaymentServiceTest {
                 methodMethods, [create: { it }] as Repository, 15, compliance)
 
         assertThrows(IllegalArgumentException) {
-            service.prepareSend(new SendPrepareRequest(senderAddress: "rSender", paymentMethodId: "pm1", amount: new BigDecimal("5")), "")
+            service.prepareSend(new SendPrepareRequest(senderAddress: "rSender", paymentMethodId: "pm1", amount: "5"), "")
         }
     }
 
@@ -267,7 +267,7 @@ class PaymentServiceTest {
 
     @Test
     void testConfirmReceiveMarksConfirmedWhenDepositVerified() {
-        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: new BigDecimal("5"), recipientAddress: "rDest", recipientTag: 7L)
+        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L)
         Transaction updated = null
         Repository<Transaction> txRepo = [get: { String id -> pending }, update: { String id, Transaction t -> updated = t; return t }] as Repository
         SignableProvider provider = signableProvider("xrp", null, null, null)
@@ -285,7 +285,7 @@ class PaymentServiceTest {
 
     @Test
     void testConfirmReceiveRejectsUnverifiedDeposit() {
-        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: new BigDecimal("5"), recipientAddress: "rDest", recipientTag: 7L)
+        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L)
         Repository<Transaction> txRepo = [get: { String id -> pending }, update: { String id, Transaction t -> t }] as Repository
         SignableProvider provider = signableProvider("xrp", null, null, null)
         provider.verifyDepositResult = false
@@ -337,7 +337,7 @@ class PaymentServiceTest {
     @Test
     void testConfirmReceiveRequiresXrpDestinationTag() {
         // Receive snapshotted WITHOUT a destination tag -> cannot safely attribute a deposit on the shared account.
-        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: new BigDecimal("5"), recipientAddress: "rDest", recipientTag: null)
+        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: null)
         Repository<Transaction> txRepo = [get: { String id -> pending }] as Repository
         SignableProvider provider = signableProvider("xrp", null, null, null)
         provider.verifyDepositResult = true
