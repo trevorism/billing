@@ -12,8 +12,7 @@ interface NetworkAwareProvider {
     String getChain()
 
     /**
-     * Coarse wallet network the user's wallet must be on: "mainnet" or "testnet". Coarse because CIP-30
-     * cannot distinguish Cardano preprod from preview (both report networkId 0).
+     * Coarse wallet network the user's wallet must be on: "mainnet" or "testnet".
      */
     String getWalletNetwork()
 

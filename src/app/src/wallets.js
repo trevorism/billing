@@ -7,6 +7,23 @@
 // (GemWallet, Crossmark) since XRPL has no single injected standard.
 import { isInstalled, getAddress, getNetwork, signTransaction } from '@gemwallet/api'
 import crossmark from '@crossmarkio/sdk'
+import { bech32 } from 'bech32'
+
+function hexToBytes(hex) {
+  const clean = hex.startsWith('0x') ? hex.slice(2) : hex
+  const out = new Uint8Array(clean.length / 2)
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.substr(i * 2, 2), 16)
+  return out
+}
+
+// CIP-30 returns addresses as hex (sometimes wrapped in a CBOR bytestring header). Convert to the bech32
+// form the API expects (addr1.../addr_test1...). The address header's low nibble carries the network id.
+function cip30AddressToBech32(hex) {
+  let bytes = hexToBytes(hex)
+  if (bytes.length > 2 && bytes[0] === 0x58) bytes = bytes.slice(2)   // unwrap CBOR bytestring header
+  const prefix = (bytes[0] & 0x0f) === 0x01 ? 'addr' : 'addr_test'
+  return bech32.encode(prefix, bech32.toWords(bytes), 1000)           // 1000 char limit: cardano addrs exceed bech32's default 90
+}
 
 // Normalize a wallet-reported network to the same vocabulary the API uses ('mainnet'/'testnet'/...).
 // Anything we don't recognize is passed through lowercased rather than defaulted to 'testnet', so a
@@ -39,7 +56,15 @@ function cardanoCip30Adapters() {
         async connect() {
           api = await w.enable()
           const networkId = await api.getNetworkId() // 0 = testnet, 1 = mainnet
-          return { network: networkId === 1 ? 'mainnet' : 'testnet' }
+          // Pull the wallet's own address so the user doesn't have to paste it. If the wallet/conversion
+          // can't provide it, fall back to manual entry (address stays null).
+          let address = null
+          try {
+            address = cip30AddressToBech32(await api.getChangeAddress())
+          } catch (e) {
+            address = null
+          }
+          return { address, network: networkId === 1 ? 'mainnet' : 'testnet' }
         },
         async sign(unsignedPayload) {
           // CIP-30 returns a witness set; the API assembles it with the prepared tx server-side.

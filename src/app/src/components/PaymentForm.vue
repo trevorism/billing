@@ -81,6 +81,12 @@ watch(walletId, () => { resetFlow() })
 
 function fail(message) { error.value = message; busy.value = false }
 
+// Prefer the server's error message (our handlers return { message }); fall back to the axios/JS message.
+function httpFail(label, e) {
+  const serverMessage = e.response?.data?.message
+  return fail(`${label}: ${serverMessage || e.message || e}`)
+}
+
 async function connect() {
   error.value = ''
   warning.value = ''
@@ -95,7 +101,7 @@ async function connect() {
     if (expectedWalletNetwork.value && info.networkUnverified) {
       warning.value = `Could not verify the wallet's network. Make sure it is set to ${expectedWalletNetwork.value} before signing.`
     }
-    if (info.address) senderAddress.value = info.address   // XRP wallets report the address; Cardano is pasted
+    if (info.address) senderAddress.value = info.address   // wallet's own address (XRP + Cardano via CIP-30)
     connected.value = true
   } catch (e) {
     return fail('Connect failed: ' + (e.message || e))
@@ -120,7 +126,7 @@ async function createMethod() {
     const { data } = await axios.post('/api/payment-method', body)
     methodId.value = data.id
   } catch (e) {
-    return fail('Create method failed: ' + (e.response?.status || '') + ' ' + (e.message || e))
+    return httpFail('Could not save recipient', e)
   }
   busy.value = false
 }
@@ -139,7 +145,7 @@ async function prepare() {
     transactionId.value = data.transactionId
     unsignedPayload.value = data.unsignedPayload
   } catch (e) {
-    return fail('Prepare failed: ' + (e.response?.status || '') + ' ' + (e.message || e))
+    return httpFail('Could not build transaction', e)
   }
   busy.value = false
 }
@@ -160,7 +166,7 @@ async function signAndSubmit() {
     confirmation.value = data.status
     pollStatus(transactionId.value, (s) => (confirmation.value = s))
   } catch (e) {
-    return fail('Sign/submit failed: ' + (e.message || JSON.stringify(e)))
+    return httpFail('Could not sign & send', e)
   }
   busy.value = false
 }
@@ -198,7 +204,7 @@ async function signAndSubmit() {
       </div>
       <va-alert color="info" class="mb-3" border="left">
         Network <strong>{{ selectedNetwork?.label || '...' }}</strong> — wallet must be on
-        <strong>{{ expectedWalletNetwork || '...' }}</strong>. The wallet signs; the API never holds a key.
+        <strong>{{ expectedWalletNetwork || '...' }}</strong>.
       </va-alert>
       <va-alert v-if="warning" color="warning" class="mb-3" border="left">{{ warning }}</va-alert>
 
@@ -207,21 +213,22 @@ async function signAndSubmit() {
       </va-button>
       <p v-if="senderAddress" class="ok">sender: {{ senderAddress }}</p>
 
-      <h4 class="step">1. Recipient payment method</h4>
+      <h4 class="step">1. Who are you paying?</h4>
       <va-input v-model="recipientAddress" label="Recipient address" class="mb-2" />
       <va-input v-if="isXrp" v-model="destinationTag" label="Destination tag" type="number" class="mb-2" />
-      <va-button :disabled="busy || !recipientAddress" @click="createMethod" preset="secondary">Create method</va-button>
-      <p v-if="methodId" class="ok">method id: {{ methodId }}</p>
+      <va-button :disabled="busy || !recipientAddress" @click="createMethod" preset="secondary">Add recipient</va-button>
+      <p v-if="methodId" class="ok">recipient saved</p>
 
-      <h4 class="step">2. Prepare</h4>
-      <va-input v-if="!isXrp" v-model="senderAddress" label="Your sender address" class="mb-2" />
+      <h4 class="step">2. How much?</h4>
+      <!-- Sender comes from the connected wallet; only ask if the wallet didn't report an address. -->
+      <va-input v-if="!senderAddress" v-model="senderAddress" label="Your sender address" class="mb-2" />
       <va-input v-model="amount" :label="isXrp ? 'Amount (XRP)' : 'Amount (ADA)'" type="number" class="mb-2" />
-      <va-button :disabled="busy || !methodId || !senderAddress" @click="prepare" preset="secondary">Prepare</va-button>
-      <p v-if="transactionId" class="ok">transactionId: {{ transactionId }}</p>
+      <va-button :disabled="busy || !methodId || !senderAddress" @click="prepare" preset="secondary">Build transaction</va-button>
+      <p v-if="transactionId" class="ok">transaction built — ready to sign</p>
 
-      <h4 class="step">3. Sign &amp; submit</h4>
+      <h4 class="step">3. Sign &amp; send</h4>
       <va-button :disabled="busy || !connected || !unsignedPayload" @click="signAndSubmit" color="success">
-        Sign &amp; submit
+        Sign &amp; send
       </va-button>
 
       <va-alert v-if="result" color="success" class="mt-3" border="left">
