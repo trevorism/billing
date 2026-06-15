@@ -12,7 +12,6 @@ const networks = ref([])
 const networkKey = ref(null)
 const wallets = ref([])
 const walletId = ref(null)
-const ownerId = ref('vendor-1')
 const recipientAddress = ref('')
 const destinationTag = ref('')             // XRP only
 const senderAddress = ref('')
@@ -28,6 +27,9 @@ const busy = ref(false)
 const error = ref('')
 const warning = ref('')
 const connected = ref(false)
+
+// Owner is defaulted until there's a vendor/customer UI to choose one.
+const DEFAULT_OWNER_ID = 'default'
 
 const selectedNetwork = computed(() => networks.value.find((n) => n.key === networkKey.value))
 const chain = computed(() => selectedNetwork.value?.chain)
@@ -106,7 +108,7 @@ async function createMethod() {
   busy.value = true
   try {
     // The network-qualified key is the provider discriminator the API routes on (e.g. "xrp-testnet").
-    const body = { provider: networkKey.value, ownerId: ownerId.value, address: recipientAddress.value }
+    const body = { provider: networkKey.value, ownerId: DEFAULT_OWNER_ID, address: recipientAddress.value }
     if (isXrp.value) {
       // The backend requires a destination tag to attribute an XRP receive (PaymentService.confirmReceive),
       // so block here rather than letting the method strand downstream.
@@ -206,7 +208,6 @@ async function signAndSubmit() {
       <p v-if="senderAddress" class="ok">sender: {{ senderAddress }}</p>
 
       <h4 class="step">1. Recipient payment method</h4>
-      <va-input v-model="ownerId" label="Owner id" class="mb-2" />
       <va-input v-model="recipientAddress" label="Recipient address" class="mb-2" />
       <va-input v-if="isXrp" v-model="destinationTag" label="Destination tag" type="number" class="mb-2" />
       <va-button :disabled="busy || !recipientAddress" @click="createMethod" preset="secondary">Create method</va-button>
