@@ -10,16 +10,16 @@ describe('session.js', () => {
   beforeEach(() => {
     axios.get.mockReset()
     axios.post.mockReset()
-    document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    document.cookie = 'user_name=; expires=Thu, 01 Jan 1970 00:00:00 GMT'
   })
 
   describe('isLoggedIn', () => {
-    it('is false when no session cookie is present', () => {
+    it('is false when no user_name cookie is present', () => {
       expect(isLoggedIn()).toBe(false)
     })
 
-    it('is true when a session cookie is present', () => {
-      document.cookie = 'session=abc123'
+    it('is true when a user_name cookie is present', () => {
+      document.cookie = 'user_name=alice'
       expect(isLoggedIn()).toBe(true)
     })
   })
