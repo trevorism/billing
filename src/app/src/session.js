@@ -4,8 +4,6 @@ export function isLoggedIn() {
   return document.cookie.split(';').some((c) => c.trim().startsWith('session='))
 }
 
-// Crypto networks the API serves, e.g. [{ key:'xrp-testnet', chain:'xrp', walletNetwork:'testnet',
-// label:'XRP Testnet' }, ...]. Drives the network picker, wallet filtering, and the wallet network guard.
 export async function fetchNetworks() {
   try {
     const { data } = await axios.get('/api/config')

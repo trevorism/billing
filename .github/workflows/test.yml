@@ -7,7 +7,7 @@ on:
         required: false
         type: string
         default: acceptance
-        description: Either 'unit' or 'cucumber' or 'cypress'
+        description: Either 'unit' or 'javascript' or 'cucumber' or 'cypress'
 
 permissions: write-all
 
@@ -17,6 +17,10 @@ jobs:
     uses: trevorism/actions-workflows/.github/workflows/build.yml@master
     with:
       JDK_VERSION: 25
+
+  call-jstest:
+    if: ${{inputs.TEST_TYPE == 'javascript'}}
+    uses: trevorism/actions-workflows/.github/workflows/jstest.yml@master
 
   call-accept:
     if: ${{inputs.TEST_TYPE == 'cucumber'}}
