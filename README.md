@@ -4,5 +4,7 @@
 ![GitHub language count](https://img.shields.io/github/languages/count/trevorism/billing)
 ![GitHub top language](https://img.shields.io/github/languages/top/trevorism/billing)
 
+Trevorism Billing API.
+
 # How to build
 `gradle clean build`
