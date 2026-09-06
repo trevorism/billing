@@ -18,6 +18,8 @@
     "@crossmarkio/sdk": "^0.4.0",
     "@gemwallet/api": "^3.8.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@trevorism/ui-auth": "^1.2.0",
+    "@trevorism/ui-header-bar": "^6.0.0",
     "bech32": "^2.0.0",
     "vue": "^3.5.40",
     "vue-mixpanel": "^2.0.0",
@@ -27,7 +29,6 @@
   },
   "devDependencies": {
     "@rushstack/eslint-patch": "^1.16.1",
-    "@trevorism/ui-header-bar": "^5.2.1",
     "@trevorism/vitest-test-result-events": "^2.0.0",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/eslint-config-prettier": "^10.2.0",
@@ -43,8 +44,7 @@
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "vue-cli-plugin-vuestic-ui": "~1.0.11",
-    "vue-eslint-parser": "^10.4.1",
-    "vue3-cookies": "^1.0.6"
+    "vue-eslint-parser": "^10.4.1"
   },
   "allowScripts": {
     "vue-demi@0.14.10": true,
