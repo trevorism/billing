@@ -1,26 +1,5 @@
 import axios from 'axios'
 
-function getCookieValue(name) {
-  const cookiePrefix = `${name}=`
-  const cookies = document.cookie ? document.cookie.split('; ') : []
-
-  for (const cookie of cookies) {
-    if (cookie.startsWith(cookiePrefix)) {
-      try {
-        return decodeURIComponent(cookie.substring(cookiePrefix.length))
-      } catch {
-        return ''
-      }
-    }
-  }
-
-  return ''
-}
-
-export function isLoggedIn() {
-  return !!getCookieValue('user_name')?.trim()
-}
-
 export async function fetchNetworks() {
   try {
     const { data } = await axios.get('/api/config')

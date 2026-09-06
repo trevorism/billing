@@ -1,3 +1,8 @@
+## 1.1.0
+
+Move the session onto the shared auth libraries. The payment form follows a login
+or a logout without waiting for the tab to regain focus.
+
 ## 1.0.0
 
 Adding XRP and Cardano test/prod network payments.
