@@ -6,7 +6,7 @@ package com.trevorism.payment
  */
 class DepositMatcher {
 
-    static boolean matches(DepositDetails deposit, String expectedAddress, BigDecimal expectedAmount, Long expectedDestinationTag) {
+    static boolean matches(DepositDetails deposit, String expectedAddress, BigDecimal expectedAmount, Long expectedDestinationTag, Date notBefore = null) {
         if (deposit == null || !deposit.settled) {
             return false
         }
@@ -14,6 +14,9 @@ class DepositMatcher {
             return false
         }
         if (expectedDestinationTag != null && deposit.destinationTag != expectedDestinationTag) {
+            return false
+        }
+        if (notBefore != null && (deposit.settledAt == null || deposit.settledAt.before(notBefore))) {
             return false
         }
         return deposit.amount != null && expectedAmount != null && deposit.amount >= expectedAmount

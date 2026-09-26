@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory
 class PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService)
+    private static final long DEPOSIT_SETTLEMENT_TOLERANCE_MILLIS = 60_000L
 
     private final PaymentProviderRegistry registry
     private final Repository<PaymentMethod> paymentMethodRepository
@@ -241,14 +242,18 @@ class PaymentService {
             throw new IllegalArgumentException("This receive requires a destination tag to attribute the deposit")
         }
 
+        String trimmedReference = depositReference.trim()
+        String canonicalReference = trimmedReference.toLowerCase()
+        ensureDepositNotAlreadyApplied(canonicalReference, transactionId)
+
         BigDecimal expectedAmount = transaction.amount != null ? new BigDecimal(transaction.amount) : null
         boolean verified = verifying
-                .verifyDeposit(depositReference, address, expectedAmount, destinationTag)
+                .verifyDeposit(trimmedReference, address, expectedAmount, destinationTag, earliestAcceptableSettlement(transaction))
         if (!verified) {
             throw new IllegalArgumentException("Deposit ${depositReference} does not match the expected payment for ${transactionId}")
         }
         transaction.status = TransactionStatus.CONFIRMED
-        transaction.externalReference = depositReference
+        transaction.externalReference = canonicalReference
         saveUpdate(transaction)
         log.info("Confirmed receive {} from deposit {}", transactionId, depositReference)
         return resultOf(transaction)
@@ -301,6 +306,24 @@ class PaymentService {
             throw new IllegalArgumentException("Payment method not found: ${paymentMethodId}")
         }
         return method
+    }
+
+    private void ensureDepositNotAlreadyApplied(String canonicalReference, String transactionId) {
+        List<String> storedVariants = [canonicalReference, canonicalReference.toUpperCase()].unique()
+        boolean appliedElsewhere = storedVariants.any { String variant ->
+            transactionRepository.filter(new SimpleFilter("externalReference", FilterConstants.OPERATOR_EQUAL, variant))
+                    ?.any { it.id != transactionId }
+        }
+        if (appliedElsewhere) {
+            throw new IllegalArgumentException("Deposit ${canonicalReference} has already been applied to another transaction")
+        }
+    }
+
+    private static Date earliestAcceptableSettlement(Transaction transaction) {
+        if (transaction.dateCreated == null) {
+            return null
+        }
+        return new Date(transaction.dateCreated.time - DEPOSIT_SETTLEMENT_TOLERANCE_MILLIS)
     }
 
     private void saveUpdate(Transaction transaction) {

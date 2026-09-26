@@ -3,6 +3,7 @@ package com.trevorism.payment
 import com.bloxbean.cardano.client.api.model.Amount
 import com.bloxbean.cardano.client.api.model.Result
 import com.bloxbean.cardano.client.backend.api.BackendService
+import com.bloxbean.cardano.client.backend.api.TransactionService
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants as BlockfrostConstants
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService
 import com.bloxbean.cardano.client.backend.koios.Constants as KoiosConstants
@@ -199,16 +200,17 @@ class CardanoPaymentProvider implements PaymentProvider, SignableTransferProvide
     }
 
     @Override
-    boolean verifyDeposit(String reference, String expectedAddress, BigDecimal expectedAmount, Long expectedDestinationTag) {
+    boolean verifyDeposit(String reference, String expectedAddress, BigDecimal expectedAmount, Long expectedDestinationTag, Date notBefore) {
         if (!reference) {
             return false
         }
-        return DepositMatcher.matches(fetchDeposit(reference, expectedAddress), expectedAddress, expectedAmount, expectedDestinationTag)
+        return DepositMatcher.matches(fetchDeposit(reference, expectedAddress), expectedAddress, expectedAmount, expectedDestinationTag, notBefore)
     }
 
     protected DepositDetails fetchDeposit(String reference, String expectedAddress) {
         try {
-            def utxo = createBackendService().getTransactionService().getTransactionUtxos(reference).getValue()
+            TransactionService transactionService = createBackendService().getTransactionService()
+            def utxo = transactionService.getTransactionUtxos(reference).getValue()
             if (utxo == null) {
                 return null
             }
@@ -223,7 +225,9 @@ class CardanoPaymentProvider implements PaymentProvider, SignableTransferProvide
                 }
             }
             // Present in a block (utxos returned) means settled; no destination-tag concept on Cardano.
-            return new DepositDetails(true, expectedAddress, null, lovelace.movePointLeft(ADA_DECIMALS))
+            Long blockTimeSeconds = transactionService.getTransaction(reference).getValue()?.getBlockTime()
+            Date settledAt = blockTimeSeconds != null ? new Date(blockTimeSeconds * 1000L) : null
+            return new DepositDetails(true, expectedAddress, null, lovelace.movePointLeft(ADA_DECIMALS), settledAt)
         } catch (Exception e) {
             log.debug("Cardano deposit {} not found: {}", reference, e.message)
             return null
