@@ -20,4 +20,6 @@ class DepositDetails {
 
     /** Amount paid to {@link #destinationAddress}, in the rail's native major unit (XRP/ADA). */
     BigDecimal amount
+
+    Date settledAt
 }

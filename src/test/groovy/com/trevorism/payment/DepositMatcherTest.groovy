@@ -40,4 +40,23 @@ class DepositMatcherTest {
         // Cardano has no destination tag: a null expected tag must not block a match.
         assert DepositMatcher.matches(deposit(true, "addr_test1xyz", null, "10"), "addr_test1xyz", new BigDecimal("10"), null)
     }
+
+    @Test
+    void testRejectsDepositSettledBeforeNotBefore() {
+        Date invoiceCreated = new Date(1_000_000L)
+        DepositDetails earlier = new DepositDetails(true, "rDest", 7L, new BigDecimal("5"), new Date(999_999L))
+        assert !DepositMatcher.matches(earlier, "rDest", new BigDecimal("5"), 7L, invoiceCreated)
+    }
+
+    @Test
+    void testAcceptsDepositSettledAtOrAfterNotBefore() {
+        Date invoiceCreated = new Date(1_000_000L)
+        assert DepositMatcher.matches(new DepositDetails(true, "rDest", 7L, new BigDecimal("5"), new Date(1_000_000L)), "rDest", new BigDecimal("5"), 7L, invoiceCreated)
+        assert DepositMatcher.matches(new DepositDetails(true, "rDest", 7L, new BigDecimal("5"), new Date(2_000_000L)), "rDest", new BigDecimal("5"), 7L, invoiceCreated)
+    }
+
+    @Test
+    void testRejectsDepositWithUnknownSettlementTimeWhenNotBeforeRequired() {
+        assert !DepositMatcher.matches(deposit(true, "rDest", 7L, "5"), "rDest", new BigDecimal("5"), 7L, new Date(1_000_000L))
+    }
 }

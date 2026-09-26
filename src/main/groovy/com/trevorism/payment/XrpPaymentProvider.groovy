@@ -197,11 +197,11 @@ class XrpPaymentProvider implements PaymentProvider, SignableTransferProvider, C
     }
 
     @Override
-    boolean verifyDeposit(String reference, String expectedAddress, BigDecimal expectedAmount, Long expectedDestinationTag) {
+    boolean verifyDeposit(String reference, String expectedAddress, BigDecimal expectedAmount, Long expectedDestinationTag, Date notBefore) {
         if (!reference) {
             return false
         }
-        return DepositMatcher.matches(fetchDeposit(reference, expectedAddress), expectedAddress, expectedAmount, expectedDestinationTag)
+        return DepositMatcher.matches(fetchDeposit(reference, expectedAddress), expectedAddress, expectedAmount, expectedDestinationTag, notBefore)
     }
 
     protected DepositDetails fetchDeposit(String reference, String expectedAddress) {
@@ -215,7 +215,8 @@ class XrpPaymentProvider implements PaymentProvider, SignableTransferProvider, C
             Long destinationTag = tx.hasNonNull("DestinationTag") ? tx.path("DestinationTag").asLong() : null
             String amountDrops = tx.path("Amount").asText(null)
             BigDecimal amount = amountDrops ? new BigDecimal(amountDrops).movePointLeft(XRP_DECIMALS) : null
-            return new DepositDetails(settled, destination, destinationTag, amount)
+            Date settledAt = result.closeDateHuman().map { Date.from(it.toInstant()) }.orElse(null)
+            return new DepositDetails(settled, destination, destinationTag, amount, settledAt)
         } catch (Exception e) {
             log.debug("XRP deposit {} not found: {}", reference, e.message)
             return null

@@ -7,7 +7,7 @@ package com.trevorism.payment
  */
 interface DepositVerifyingProvider {
 
-    boolean verifyDeposit(String reference, String expectedAddress, BigDecimal expectedAmount, Long expectedDestinationTag)
+    boolean verifyDeposit(String reference, String expectedAddress, BigDecimal expectedAmount, Long expectedDestinationTag, Date notBefore)
 
     /**
      * Whether this rail attributes inbound deposits by a destination tag (XRP shares one account across owners

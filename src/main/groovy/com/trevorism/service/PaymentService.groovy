@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory
 class PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService)
+    private static final long DEPOSIT_SETTLEMENT_TOLERANCE_MILLIS = 60_000L
 
     private final PaymentProviderRegistry registry
     private final Repository<PaymentMethod> paymentMethodRepository
@@ -210,7 +211,8 @@ class PaymentService {
      * the expected amount to the owner's address (and destination tag for XRP). Marks the receive CONFIRMED.
      */
     PaymentResult confirmReceive(String transactionId, String depositReference) {
-        if (!depositReference) {
+        String trimmedReference = depositReference?.trim()
+        if (!trimmedReference) {
             throw new IllegalArgumentException("depositTransaction is required")
         }
         Transaction transaction = transactionRepository.get(transactionId)
@@ -241,16 +243,37 @@ class PaymentService {
             throw new IllegalArgumentException("This receive requires a destination tag to attribute the deposit")
         }
 
-        BigDecimal expectedAmount = transaction.amount != null ? new BigDecimal(transaction.amount) : null
-        boolean verified = verifying
-                .verifyDeposit(depositReference, address, expectedAmount, destinationTag)
-        if (!verified) {
-            throw new IllegalArgumentException("Deposit ${depositReference} does not match the expected payment for ${transactionId}")
+        if (transaction.dateCreated == null) {
+            throw new IllegalStateException("Receive ${transactionId} has no creation time to verify the deposit against")
         }
+
+        String canonicalReference = trimmedReference.toLowerCase()
+        if (depositAppliedToAnotherTransaction(canonicalReference, transactionId)) {
+            throw new IllegalArgumentException("Deposit ${canonicalReference} has already been applied to another transaction")
+        }
+
+        BigDecimal expectedAmount = transaction.amount != null ? new BigDecimal(transaction.amount) : null
+        Date earliestAcceptableSettlement = new Date(transaction.dateCreated.time - DEPOSIT_SETTLEMENT_TOLERANCE_MILLIS)
+        boolean verified = verifying
+                .verifyDeposit(trimmedReference, address, expectedAmount, destinationTag, earliestAcceptableSettlement)
+        if (!verified) {
+            throw new IllegalArgumentException("Deposit ${trimmedReference} does not match the expected payment for ${transactionId}")
+        }
+
+        String previousStatus = transaction.status
+        String previousReference = transaction.externalReference
         transaction.status = TransactionStatus.CONFIRMED
-        transaction.externalReference = depositReference
+        transaction.externalReference = canonicalReference
         saveUpdate(transaction)
-        log.info("Confirmed receive {} from deposit {}", transactionId, depositReference)
+
+        if (depositAppliedToAnotherTransaction(canonicalReference, transactionId)) {
+            transaction.status = previousStatus
+            transaction.externalReference = previousReference
+            saveUpdate(transaction)
+            log.warn("Rolled back receive {}: deposit {} was claimed concurrently", transactionId, canonicalReference)
+            throw new IllegalStateException("Deposit ${canonicalReference} was claimed concurrently by another transaction; retry")
+        }
+        log.info("Confirmed receive {} from deposit {}", transactionId, canonicalReference)
         return resultOf(transaction)
     }
 
@@ -301,6 +324,14 @@ class PaymentService {
             throw new IllegalArgumentException("Payment method not found: ${paymentMethodId}")
         }
         return method
+    }
+
+    private boolean depositAppliedToAnotherTransaction(String canonicalReference, String transactionId) {
+        List<String> storedVariants = [canonicalReference, canonicalReference.toUpperCase()].unique()
+        return storedVariants.any { String variant ->
+            transactionRepository.filter(new SimpleFilter("externalReference", FilterConstants.OPERATOR_EQUAL, variant))
+                    ?.any { it.id != transactionId }
+        }
     }
 
     private void saveUpdate(Transaction transaction) {
