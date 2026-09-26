@@ -268,7 +268,7 @@ class PaymentServiceTest {
 
     @Test
     void testConfirmReceiveMarksConfirmedWhenDepositVerified() {
-        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L)
+        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L, dateCreated: new Date())
         Transaction updated = null
         Repository<Transaction> txRepo = [get: { String id -> pending }, filter: { f -> [] }, update: { String id, Transaction t -> updated = t; return t }] as Repository
         SignableProvider provider = signableProvider("xrp", null, null, null)
@@ -286,7 +286,7 @@ class PaymentServiceTest {
 
     @Test
     void testConfirmReceiveRejectsDepositAlreadyAppliedToAnotherTransaction() {
-        Transaction pending = new Transaction(id: "tx2", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L)
+        Transaction pending = new Transaction(id: "tx2", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L, dateCreated: new Date())
         Transaction alreadyConfirmed = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "CONFIRMED", externalReference: "abc123")
         List<String> queriedReferences = []
         Repository<Transaction> txRepo = [
@@ -306,7 +306,7 @@ class PaymentServiceTest {
 
     @Test
     void testConfirmReceiveRejectsDepositStoredInUppercaseByAnotherTransaction() {
-        Transaction pending = new Transaction(id: "tx2", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L)
+        Transaction pending = new Transaction(id: "tx2", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L, dateCreated: new Date())
         Transaction priorSend = new Transaction(id: "tx1", provider: "xrp", type: "SEND", status: "CONFIRMED", externalReference: "ABC123")
         Repository<Transaction> txRepo = [
                 get   : { String id -> pending },
@@ -337,21 +337,78 @@ class PaymentServiceTest {
     }
 
     @Test
-    void testConfirmReceiveSkipsSettlementCheckForLegacyReceiveWithoutCreationDate() {
+    void testConfirmReceiveRejectsReceiveWithoutCreationDate() {
         Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L)
         Repository<Transaction> txRepo = [get: { String id -> pending }, filter: { f -> [] }, update: { String id, Transaction t -> t }] as Repository
         SignableProvider provider = signableProvider("xrp", null, null, null)
         provider.verifyDepositResult = true
         PaymentService service = new PaymentService(new PaymentProviderRegistry([provider]), methodRepo(null), txRepo)
 
-        service.confirmReceive("tx1", "DEPOSIT_HASH")
+        assertThrows(IllegalStateException) {
+            service.confirmReceive("tx1", "DEPOSIT_HASH")
+        }
+        assert provider.capturedDepositReference == null
+    }
 
-        assert provider.capturedNotBefore == null
+    @Test
+    void testConfirmReceiveRejectsWhitespaceOnlyReference() {
+        Repository<Transaction> txRepo = [get: { String id -> throw new AssertionError("should not load the transaction") }] as Repository
+        PaymentService service = new PaymentService(new PaymentProviderRegistry([signableProvider("xrp", null, null, null)]), methodRepo(null), txRepo)
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException) {
+            service.confirmReceive("tx1", "   ")
+        }
+        assert error.message == "depositTransaction is required"
+    }
+
+    @Test
+    void testConfirmReceiveRollsBackWhenDepositClaimedConcurrently() {
+        Transaction pending = new Transaction(id: "tx2", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L, externalReference: "rDest", dateCreated: new Date())
+        Transaction concurrentWinner = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "CONFIRMED", externalReference: "abc123")
+        List<Map> savedStates = []
+        boolean confirmationSaved = false
+        Repository<Transaction> txRepo = [
+                get   : { String id -> pending },
+                filter: { f -> confirmationSaved && f.value == "abc123" ? [concurrentWinner, pending] : [] },
+                update: { String id, Transaction t -> savedStates << [status: t.status, externalReference: t.externalReference]; confirmationSaved = true; return t }
+        ] as Repository
+        SignableProvider provider = signableProvider("xrp", null, null, null)
+        provider.verifyDepositResult = true
+        PaymentService service = new PaymentService(new PaymentProviderRegistry([provider]), methodRepo(null), txRepo)
+
+        assertThrows(IllegalStateException) {
+            service.confirmReceive("tx2", "ABC123")
+        }
+        assert savedStates == [
+                [status: "CONFIRMED", externalReference: "abc123"],
+                [status: "PENDING", externalReference: "rDest"]
+        ]
+        assert pending.status == "PENDING"
+    }
+
+    @Test
+    void testConfirmReceiveKeepsConfirmationWhenOnlyItsOwnRecordHoldsTheDeposit() {
+        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L, dateCreated: new Date())
+        int updates = 0
+        boolean confirmationSaved = false
+        Repository<Transaction> txRepo = [
+                get   : { String id -> pending },
+                filter: { f -> confirmationSaved && f.value == "abc123" ? [pending] : [] },
+                update: { String id, Transaction t -> updates++; confirmationSaved = true; return t }
+        ] as Repository
+        SignableProvider provider = signableProvider("xrp", null, null, null)
+        provider.verifyDepositResult = true
+        PaymentService service = new PaymentService(new PaymentProviderRegistry([provider]), methodRepo(null), txRepo)
+
+        PaymentResult result = service.confirmReceive("tx1", "ABC123")
+
+        assert result.status == "CONFIRMED"
+        assert updates == 1
     }
 
     @Test
     void testConfirmReceiveRejectsUnverifiedDeposit() {
-        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L)
+        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: 7L, dateCreated: new Date())
         Repository<Transaction> txRepo = [get: { String id -> pending }, filter: { f -> [] }, update: { String id, Transaction t -> t }] as Repository
         SignableProvider provider = signableProvider("xrp", null, null, null)
         provider.verifyDepositResult = false
@@ -403,7 +460,7 @@ class PaymentServiceTest {
     @Test
     void testConfirmReceiveRequiresXrpDestinationTag() {
         // Receive snapshotted WITHOUT a destination tag -> cannot safely attribute a deposit on the shared account.
-        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: null)
+        Transaction pending = new Transaction(id: "tx1", provider: "xrp", type: "RECEIVE", status: "PENDING", paymentMethodId: "pm1", amount: "5", recipientAddress: "rDest", recipientTag: null, dateCreated: new Date())
         Repository<Transaction> txRepo = [get: { String id -> pending }] as Repository
         SignableProvider provider = signableProvider("xrp", null, null, null)
         provider.verifyDepositResult = true
